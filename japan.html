@@ -1,0 +1,221 @@
+<!--
+データは
+http://www.stat.go.jp/data/nenkan/02.htm
+2 - 3 都道府県別人口（エクセル：50KB）
+を使用しています。
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<script src="assets/d3.js"></script>
+<script src="assets/queue.js"></script>
+<script src="assets/topojson.js"></script>
+<style>
+body {
+  background-color: #FFF;
+  margin: 0;
+}
+#main {
+  width: 900px;
+  margin: 0 auto;
+}
+#logoBlock {
+  float: left;
+  width: 500px;
+  height: 60px;
+  margin: 0 auto;
+}
+#menuBlock {
+  float: right;
+  width: 400px;
+  height: 60px;
+  margin: 0 auto;
+  text-align: right;
+}
+#logoBlock p {
+  font-size: 9px;
+  color: #999;
+  margin-left: 20px;
+  margin-top: 4px;
+}
+h1 {
+  font-size: 18px;
+  margin-left: 20px;
+  margin-top: 20px;
+  margin-bottom: 0px;
+}
+#menuBlock select {
+  margin-right: 20px;
+  margin-top: 20px; 
+}
+</style>
+</head>
+<body>
+
+<div id="main">
+
+  <div id="logoBlock">
+      <h1>都道府県別 人口の推移</h1>
+      <p>単位:1000人／2014年1月8日現在／地図出典：<a href="http://www.gsi.go.jp/kankyochiri/gm_jpn.html">地球地図日本</a>／データ出典：<a href="http://www.stat.go.jp/index.htm">総務省統計局</a></p>
+  </div>
+  <div id="menuBlock">
+      <select></select>
+  </div>
+
+</div>
+
+<script type="text/javascript">
+
+    /* --------------------
+      変数定義
+    -------------------- */
+
+    var width = 900;
+    var height = 600;
+
+    var indexYear = -1;
+    var prefectureArray = new Array();
+    var yearArray = new Array();
+    var selectedYear;
+    var max_num = 0;
+
+    /* --------------------
+      描画のための準備
+    -------------------- */
+
+    /* 地図投影の指定 */
+    var projection = d3.geo.mercator()
+              .scale(1200)
+              .center([140.467551, 37.750299]); //中心の座標。経度緯度の順。
+
+    /* 地形データをSVGに変換するための入れ物 */
+    var path = d3.geo.path().projection(projection);
+
+    /* 描画領域の指定 */
+    var svg = d3.select("#main")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+    /* スケール */
+    var rScale = d3.scale.linear()
+              .range(["#FFF", "#00F"]);
+
+
+    /* --------------------
+      データファイルの読み込み
+    -------------------- */
+
+    queue()
+        .defer(d3.json, "data/Japan.json")
+        .defer(d3.csv,  "data/data_2-3_3.csv")
+        .await(loadReady);
+
+
+    /* --------------------
+      ファイル読み込み後に実行
+    -------------------- */
+
+    function loadReady(error, json, population) {
+
+        /* データの上端にある都道府県名を配列化 */
+        prefectureArray = d3.keys(population[0]).filter(function(key) { return key !== "date"; });
+
+        /* データの左端にある年を配列化 */
+        for ( var i=0; i<population.length; i++) {
+          yearArray[i] = population[i].date;
+        }
+
+        /* スケール */
+        rScale.domain([0, 9000]);
+
+
+        /* 年プルダウンの定義 */
+        function changeYear() {
+
+              if (indexYear != -1) {
+                  indexYear = parseInt( menu.property("value") );
+              } else {
+                  indexYear = 0;
+              };
+              selectedYear =  population.filter( function(d) { return d.date == yearArray[indexYear] });
+              
+              renderMap();
+        }
+
+        var menu = d3.select("#menuBlock select").on("change", changeYear);
+
+        menu.selectAll("option")
+            .data(yearArray)
+            .enter().append("option")
+            .attr("value", function(d, i) { return i; })
+            .text(function(d) { return d+"年"; });
+
+
+        /* 地図の描画 */
+        var _prev = new Array();
+        var japanmap = svg.append("svg:g").attr("class", "japan");
+
+        function renderMap() {
+
+              japanmap.selectAll("path")
+                      .data(json.features)
+                      .enter()
+                      .append("svg:path")
+                      .attr("id", function(d) { 
+                          return d.properties.nam_ja;
+                      })
+                      .attr("d", path)
+                      .style("fill", "#FFF");
+
+              
+              japanmap.selectAll("path")
+                      .style("fill", function(d, i) {
+                          return rScale( parseInt(_prev[i]) )
+                      })
+                      .transition()
+                      .duration(2000)
+                      .style("fill", function(d, i) {
+                          var _value = selectedYear[0][ d.properties.nam_ja ];
+                          _prev[i] = _value;
+                          return rScale( parseInt(_value) )
+                      });
+
+        };
+
+
+        /* legend */
+        var labels = svg.append("g")
+          .attr("class", "legendblock")
+          .attr("transform", "translate(20, 40)")
+
+        for ( var i=1; i<10; i++) {
+
+            labels.append("rect")
+              .attr("x", 0)
+              .attr("y", i*10+2)
+              .attr("width", 10)
+              .attr("height", 10)
+              .style("fill", function(d) { return rScale( i*1000 ); });
+
+            labels.append("text")
+              .attr("x", 14)
+              .attr("y", i*10+10)
+              .attr("dy", ".15em")
+              .attr("font-family", "sans-serif")
+              .attr("font-size", "8px")
+              .text( (i-1)*1000 + "〜" );
+        }
+
+
+        /* ページ描画初期時の表示 */
+        changeYear();
+
+    };
+
+
+</script>
+</body>
+</html>
