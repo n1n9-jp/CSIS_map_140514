@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title></title>
+<script src="assets/d3.v3.min.js" charset="utf-8"></script>
+<script src="assets/queue.v1.min.js" charset="utf-8"></script>
+<script src="assets/topojson.v1.min.js" charset="utf-8"></script>
+<style>
+#map {
+  border:1px solid #999;
+  width:960px;
+  height:500px;
+}
+.country {
+  fill : #CCC;
+}
+</style>
+<body>
+<div id="map"></div>
+<script>
+
+    /* --------------------
+      変数定義
+    -------------------- */
+
+    var width  = 960,
+        height = 500;
+
+    /* --------------------
+      描画のための準備
+    -------------------- */
+
+    /* 地図投影の指定 */
+    var projection = d3.geo.mercator()
+                    .scale(180);
+
+    /* 地形データをSVGに変換するための入れ物 */
+    var path = d3.geo.path()
+        .projection(projection);
+
+    /* 描画領域の指定 */
+    var svg = d3.select("#map").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    /* スケール */
+    var colorScale = d3.scale.linear()
+              .range(["#e4cde4", "#a65ba6"]);
+
+
+    /* --------------------
+      データファイルの読み込み
+    -------------------- */
+
+    queue()
+        .defer(d3.json, "data/world-50m.json")
+        .defer(d3.tsv, "data/world-population.tsv")
+        .await(loadReady);
+
+
+    /* --------------------
+      地図の描画
+    -------------------- */
+
+    function loadReady(_error, _topojson, _population) {
+
+          if (_error){ console.log(_error); }
+
+          /* 描画用の変数定義 */
+
+          _population.forEach( function(d, i){
+              _population[i].population = +_population[i].population;
+          });
+
+          var geometries = topojson.feature(_topojson, _topojson.objects.countries).features,
+              n = geometries.length;
+
+          geometries.forEach(function(d) { 
+              var _popu = _population.filter(function(n) { return d.id == n.id; })[0];
+              if (typeof _popu === "undefined"){
+                d.population = "Undefined";
+              } else {
+                d.population = _popu.population;
+              }
+          });
+
+
+          /* 色の定義 */
+          colorScale.domain([0, d3.max(_population, function(d) { return parseInt(d.population); })]);          
+
+
+          /* 描画 */
+          var countries =  svg.append("g").selectAll(".country").data(geometries);
+
+          countries
+              .enter().insert("path")
+                  .attr("class", "country")
+                  .attr("d", path)
+                  .style("fill", function(d, i){
+                      
+                      if ( d.population != undefined){
+                          return colorScale( d.population );
+                      } else {
+                          return "#ddd";
+                      }
+                        
+                  })
+                  .style("stroke", "#CCC")
+                  .style("stroke-width", "0.2px");
+    }
+</script>
+</body>
+</html>
