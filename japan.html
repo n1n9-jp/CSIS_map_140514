@@ -9,9 +9,9 @@ http://www.stat.go.jp/data/nenkan/02.htm
 <head>
 <meta charset="utf-8">
 <title></title>
-<script src="assets/d3.js"></script>
-<script src="assets/queue.js"></script>
-<script src="assets/topojson.js"></script>
+<script src="assets/d3.v3.min.js" charset="utf-8"></script>
+<script src="assets/queue.v1.min.js" charset="utf-8"></script>
+<script src="assets/topojson.v1.min.js" charset="utf-8"></script>
 <style>
 body {
   background-color: #FFF;
@@ -58,7 +58,7 @@ h1 {
 
   <div id="logoBlock">
       <h1>都道府県別 人口の推移</h1>
-      <p>単位:1000人／2014年1月8日現在／地図出典：<a href="http://www.gsi.go.jp/kankyochiri/gm_jpn.html">地球地図日本</a>／データ出典：<a href="http://www.stat.go.jp/index.htm">総務省統計局</a></p>
+      <p>単位:人／2014年1月8日現在／地図出典：<a href="http://www.gsi.go.jp/kankyochiri/gm_jpn.html">地球地図日本</a>／データ出典：<a href="http://www.stat.go.jp/index.htm">総務省統計局</a></p>
   </div>
   <div id="menuBlock">
       <select></select>
@@ -118,14 +118,16 @@ h1 {
       ファイル読み込み後に実行
     -------------------- */
 
-    function loadReady(error, json, population) {
+    function loadReady(_error, _topojson, _population) {
+
+        if (_error){ console.log(_error); }
 
         /* データの上端にある都道府県名を配列化 */
-        prefectureArray = d3.keys(population[0]).filter(function(key) { return key !== "date"; });
+        prefectureArray = d3.keys(_population[0]).filter(function(key) { return key !== "date"; });
 
         /* データの左端にある年を配列化 */
-        for ( var i=0; i<population.length; i++) {
-          yearArray[i] = population[i].date;
+        for ( var i=0; i<_population.length; i++) {
+          yearArray[i] = _population[i].date;
         }
 
         /* スケール */
@@ -140,7 +142,7 @@ h1 {
               } else {
                   indexYear = 0;
               };
-              selectedYear =  population.filter( function(d) { return d.date == yearArray[indexYear] });
+              selectedYear =  _population.filter( function(d) { return d.date == yearArray[indexYear] });
               
               renderMap();
         }
@@ -161,7 +163,7 @@ h1 {
         function renderMap() {
 
               japanmap.selectAll("path")
-                      .data(json.features)
+                      .data(topojson.feature(_topojson, _topojson.objects.japan).features)
                       .enter()
                       .append("svg:path")
                       .attr("id", function(d) { 
@@ -178,15 +180,20 @@ h1 {
                       .transition()
                       .duration(2000)
                       .style("fill", function(d, i) {
+                        
                           var _value = selectedYear[0][ d.properties.nam_ja ];
                           _prev[i] = _value;
                           return rScale( parseInt(_value) )
+
                       });
 
         };
 
 
         /* legend */
+
+        var legend_array = ["","0〜99万","100万〜199万","200万〜299万","300万〜399万","400万〜499万","500万〜599万","600万〜699万","700万〜799万","800万〜"];
+
         var labels = svg.append("g")
           .attr("class", "legendblock")
           .attr("transform", "translate(20, 40)")
@@ -206,7 +213,7 @@ h1 {
               .attr("dy", ".15em")
               .attr("font-family", "sans-serif")
               .attr("font-size", "8px")
-              .text( (i-1)*1000 + "〜" );
+              .text( legend_array[i] );
         }
 
 
